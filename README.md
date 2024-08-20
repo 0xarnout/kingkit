@@ -31,9 +31,9 @@ While LD_PRELOAD rootkits are very powerful, they have a critical weakness: stat
 
 ## resources about LD_PRELOAD rootkits
 
-[Memory Malware Part 0x2 — Crafting LD_PRELOAD Rootkits in Userland](https://compilepeace.medium.com/memory-malware-part-0x2-writing-userland-rootkits-via-ld-preload-30121c8343d5)
-[Creating a Rootkit to Learn C](https://h0mbre.github.io/Learn-C-By-Creating-A-Rootkit/)
-[awesome-linux-rootkits](https://github.com/milabs/awesome-linux-rootkits)
+* [Memory Malware Part 0x2 — Crafting LD_PRELOAD Rootkits in Userland](https://compilepeace.medium.com/memory-malware-part-0x2-writing-userland-rootkits-via-ld-preload-30121c8343d5)
+* [Creating a Rootkit to Learn C](https://h0mbre.github.io/Learn-C-By-Creating-A-Rootkit/)
+* [awesome-linux-rootkits](https://github.com/milabs/awesome-linux-rootkits)
 
 
 ## Note
