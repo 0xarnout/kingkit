@@ -153,6 +153,12 @@ int king() {
     #if DEBUG
     printf("[kingkit] king() called.\n");
     #endif
+    if (getuid() != 0) {
+        #if DEBUG
+        printf("[kingkit] king() is called by a non-root user.\n");
+        #endif
+        return -1;
+    }
     original_open = syscall_address(original_open, "open");
     original_mount = syscall_address(original_mount, "mount");
     //revert mounting
