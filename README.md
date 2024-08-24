@@ -20,9 +20,13 @@ Because of conflicting glibc versions you need to compile the rootkit on the mac
 * [x] Block writing to LIB_PATH and FAKE_PRELOAD
 * [x] Write name to king.txt and protect it
 * [x] Hiding files and directories starting with HIDE_PREFIX
-* [ ] Reverse shell persistence
+* [x] Reverse shell persistence
 * [ ] Hiding processes and connections from netstat, ps and lsof
 * [ ] Automatic restoration of the library after deletion
+
+
+### reverse shell
+The rootkit can spawn a reverse shell every minute by hooking the time() function in cron. To use this feature you have to change the HOST and PORT macros to your vpn ip address and the port netcat (or a different tool) is listening on. Additionally you have to restart the cron daemon so the rootkit is loaded by cron, to do that run `systemctl restart cron` on the box after the rootkit is installed.
 
 
 ### remove LD_PRELOAD rootkits
