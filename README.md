@@ -11,7 +11,7 @@ Then you can install the rootkit with:
 cp ./kingkit.so /lib/kingkit.so
 echo "/lib/kingkit.so" > /etc/ld.so.preload
 ```
-Because of conflicting glibc versions you need to compile the rootkit on the machine where you want to run it, otherwise it can break the machine. Also make sure to change the macro KING_NAME to your own nickname.
+Because of conflicting glibc versions you need to compile the rootkit on a koth machine. The easiest option is to compile on the food machine because it is available as a room, after you compiled it you can use that binary on all koth machines. Also make sure to change the macro KING_NAME to your own nickname.
 
 
 ### features
