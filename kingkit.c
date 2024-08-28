@@ -194,6 +194,7 @@ int set_attributes(const char *pathname, int action) {
         attr ^= attr & (FS_APPEND_FL | FS_IMMUTABLE_FL);
     }
     ioctl(fd, FS_IOC_SETFLAGS, &attr);
+    close(fd);
     return 0;
 }
 
