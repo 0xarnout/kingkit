@@ -15,10 +15,9 @@ Because of conflicting glibc versions you need to compile the rootkit on a koth 
 
 
 ### features
-* [x] Block any writing to king.txt
+* [x] Protect and write name to king.txt
 * [x] Redirect writes to /etc/ld.so.preload to FAKE_PRELOAD
-* [x] Block writing to LIB_PATH and FAKE_PRELOAD
-* [x] Write name to king.txt and protect it
+* [x] Protect the rootkit library and FAKE_PRELOAD
 * [x] Hiding files and directories starting with HIDE_PREFIX
 * [x] Reverse shell persistence
 * [ ] Hiding processes and connections from netstat, ps and lsof
