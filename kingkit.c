@@ -822,7 +822,7 @@ int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpat
         original_remove = syscall_address(original_remove, "remove");
         free(real_oldpath);
         free(real_newpath);
-        return (*original_remove)(oldpath); //do this after oldpath is renamed in case it's /etc/ld.so.preload!!
+        return (*original_remove)(real_oldpath); //do this after oldpath is renamed in case it's /etc/ld.so.preload!!
     }
     free(real_oldpath);
     free(real_newpath);
@@ -862,7 +862,7 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
         original_remove = syscall_address(original_remove, "remove");
         free(real_oldpath);
         free(real_newpath);
-        return (*original_remove)(oldpath); //do this after oldpath is renamed in case it's /etc/ld.so.preload!!
+        return (*original_remove)(real_oldpath); //do this after oldpath is renamed in case it's /etc/ld.so.preload!!
     }
     free(real_oldpath);
     free(real_newpath);
