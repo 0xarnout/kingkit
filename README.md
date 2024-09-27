@@ -20,7 +20,7 @@ Because of conflicting glibc versions you need to compile the rootkit on a koth 
 * [x] Protect the rootkit library and FAKE_PRELOAD
 * [x] Hiding files and directories starting with HIDE_PREFIX or with the gid equal to HIDDEN_GID
 * [x] Reverse shell persistence
-* [ ] Hiding processes and connections from netstat, ps and lsof
+* [x] Hiding processes and connections from netstat, ps and lsof
 * [ ] Automatic restoration of the library after deletion
 
 
@@ -30,6 +30,10 @@ The rootkit hides files whose gid is equal to HIDDEN_GID and makes it impossible
 
 ### process hiding
 All processes with the gid equal to HIDDEN_GID are hidden from procfs and tools like `ps`. To set the gid you can use something like: `python3 -c 'import os;os.setgid(HIDDEN_GID);os.system("/bin/bash")'` where HIDDEN_GID is defined in the rootkit. Be careful with creating files, any files created by a process with HIDDEN_GID set will also be hidden and can only be accessed after setting a different gid, you can do that with: `chgrp root file_to_unhide`.
+
+
+### network connections hiding
+Network connections with the ip address in the HOST macro are hidden. This only aplies to ipv4 tcp and udp connections. Traffic like icmp and all ipv6 traffic is still visible, but most connections on KotH are ipv4 so it should be sufficient.
 
 
 ### reverse shell

