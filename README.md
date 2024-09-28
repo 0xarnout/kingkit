@@ -25,11 +25,11 @@ Because of conflicting glibc versions you need to compile the rootkit on a koth 
 
 
 ### file hiding
-The rootkit hides files whose gid is equal to HIDDEN_GID and makes it impossible to do any file operations on it until the gid is changed with `chown` or `chgrp`. To hide a file you can run `chgrp HIDDEN_GID file_to_hide` where HIDDEN_GID is the HIDDEN_GID set in the rootkit, by default it is 5005. Apart from the HIDDEN_GID all files/directories starting with the HIDE_PREFIX are hidden from the directory listing, but they can still be accessed, they are only hidden from ls. You can view the files hidden by gid from a shell with gid equal to HIDDEN_GID if ALLOW_HIDING_BYPASS is set to 1.
+The rootkit hides files whose gid is equal to HIDDEN_GID and makes it impossible to do any file operations on it until the gid is changed with `chown` or `chgrp`. To hide a file you can run `chgrp HIDDEN_GID file_to_hide` where HIDDEN_GID is the HIDDEN_GID set in the rootkit, by default it is 5005. Apart from the HIDDEN_GID all files/directories starting with the HIDE_PREFIX are hidden from the directory listing, but they can still be accessed, they are only hidden from ls.
 
 
 ### process hiding
-All processes with the gid equal to HIDDEN_GID are hidden from procfs and tools like `ps`. To set the gid you can use something like: `python3 -c 'import os;os.setgid(HIDDEN_GID);os.system("/bin/bash")'` where HIDDEN_GID is defined in the rootkit. Be careful with creating files, any files created by a process with HIDDEN_GID set will also be hidden and can only be accessed after setting a different gid, you can do that with: `chgrp root file_to_unhide`. You can enable viewing hidden processes from a shell that's hidden (gid=HIDDEN_GID) by setting the macro 'ALLOW_HIDING_BYPASS' to 1. This option is available because ps will normally break if you try to run it in a hidden shell.
+All processes with the gid equal to HIDDEN_GID are hidden from procfs and tools like `ps`. To set the gid you can use something like: `python3 -c 'import os;os.setgid(HIDDEN_GID);os.system("/bin/bash")'` where HIDDEN_GID is defined in the rootkit. Be careful with creating files, any files created by a process with HIDDEN_GID set will also be hidden and can only be accessed after setting a different gid, you can do that with: `chgrp root file_to_unhide`.
 
 
 ### network connections hiding
