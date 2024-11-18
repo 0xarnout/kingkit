@@ -21,7 +21,7 @@ Because of conflicting glibc versions you need to compile the rootkit on a koth 
 * [x] Hiding files and directories starting with HIDE_PREFIX or with the gid equal to HIDDEN_GID
 * [x] Reverse shell persistence
 * [x] Hiding processes and connections from netstat, ps and lsof
-* [ ] Automatic restoration of the library after deletion
+* [x] Automatic restoration of the library after deletion
 
 
 ### file hiding
@@ -38,6 +38,10 @@ Network connections with the ip address in the HOST macro are hidden. This only 
 
 ### reverse shell
 The rootkit can spawn a reverse shell every minute by hooking the time() function in cron. To use this feature you have to change the HOST and PORT macros to your vpn ip address and the port netcat (or a different tool) is listening on. Additionally you have to restart the cron daemon so the rootkit is loaded by cron, to do that run `systemctl restart cron` on the machine after the rootkit is installed. The process is automatically hidden using the HIDDEN_GID.
+
+
+### advanced persistence through automatic restoration
+If you set the ADVANCED_PERSISTENCE macro to 1 the rootkit will restore itself when deleted, and it will also write the path of the rootkit library to /etc/ld.so.preload. Beware that the rootkit will be very difficult to remove, even if you want to do so yourself!
 
 
 ### remove LD_PRELOAD rootkits
