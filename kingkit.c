@@ -3,7 +3,6 @@
  */
 
 
-#include <stddef.h>
 #define _GNU_SOURCE
 
 #include <linux/limits.h>
