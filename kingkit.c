@@ -55,6 +55,7 @@ void revshell();
 int is_hidden(char *);
 int is_protected(char *);
 int forge_procnet(char *pathname);
+int cmp_files(char *, char *);
 
 
 //hooks declarations
@@ -358,6 +359,31 @@ int forge_procnet(char *pathname) {
     }
     lseek(forged_fd, 0, SEEK_SET);
     return forged_fd;
+}
+
+
+int cmp_files(char *file1, char *file2) {
+    FILE *f1 = fopen(file1, "r");
+    if (f1 == NULL) {
+        return 1;
+    }
+
+    FILE *f2 = fopen(file2, "r");
+    if (f2 == NULL) {
+        fclose(f1);
+        return 1;
+    }
+
+    char c1, c2;
+    while (c1 == c2 && c1 != EOF) {
+        c1 = getc(f1);
+        c2 = getc(f2);
+    }
+
+    int ret = !(feof(f1) && feof(f2));
+    fclose(f1);
+    fclose(f2);
+    return ret;
 }
 
 
